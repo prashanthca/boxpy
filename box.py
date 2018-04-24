@@ -5,6 +5,7 @@ import json
 import sys
 import requests
 from requests.auth import HTTPBasicAuth
+import getpass
 import xml.etree.ElementTree as ET
 
 
@@ -64,25 +65,32 @@ def sizeof_fmt(num, suffix='B'):
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
+def load_config(config=None):
+	if config == None:
+		config = os.path.expanduser("~")+"/.boxpy_conf"
+
+	user_config = None
+	try:
+		with open(config) as configjson:
+			user_config = json.loads(configjson.read())
+	except Exception as e:
+		print "Error: config file not found"
+		sys.exit(1)
+	return user_config
+
 parser = argparse.ArgumentParser(description='Box.com python client',add_help=True)
 
 group = parser.add_mutually_exclusive_group(required=False)
 
 group.add_argument('--upload', action='store_true')
 group.add_argument('--list', action='store_true')
+group.add_argument('--createconf', action='store_true')
 
 parser.add_argument('--files', metavar='<file>', type=str, nargs='+',
 					help='files to be uploaded')
 parser.add_argument('-c', "--config", metavar='<config_file>', help="Config file")
 args = parser.parse_args()
 
-conf_file = os.path.expanduser("~")+"/.boxpy_conf"
-if args.config != None:
-	conf_file = args.config
-
-user_config = None
-with open(conf_file) as configjson:
-	user_config = json.loads(configjson.read())
 
 if args.upload == True:
 	if args.files == None:
@@ -92,6 +100,7 @@ if args.upload == True:
 	for fil in args.files:
 		reg_match_files = glob.glob(fil)
 		for match_file in reg_match_files:
+			user_config = load_config(config=args.config)
 			if user_config != None:
 				uname = user_config['users'][user_config['default']]['username']
 				passwd = user_config['users'][user_config['default']]['password']
@@ -103,6 +112,7 @@ if args.upload == True:
 				sys.exit(1)
 
 elif args.list == True:
+	user_config = load_config(config=args.config)
 	if user_config == None:
 		print "Error: User config not found"
 		sys.exit(1)
@@ -118,8 +128,18 @@ elif args.list == True:
 		for resp in resp_root.iter('{DAV:}response'): 
 			print resp.find('{DAV:}href').text + " (" + sizeof_fmt(int(resp.find('{DAV:}propstat').find('{DAV:}prop').find('{DAV:}getcontentlength').text)) + ")"
 	else:
-		print "Error: Unable to process request"
+		print "Error: Unable to process request. Please check the user credentials in the config file"
 		sys.exit(1)
+
+elif args.createconf == True:
+	sample_config = {'default': 0, 'users': []}
+	username = raw_input("Username: ") 
+	password = getpass.getpass("Password: ")
+	sample_config['users'].append({'username': username, 'password': password})
+	with open(os.path.expanduser("~")+"/.boxpy_conf", 'w+') as conf_file:
+		conf_file.write(json.dumps(sample_config))
+		conf_file.close()
+
 else:
 	parser.print_help(sys.stderr)
 	sys.exit(1)
