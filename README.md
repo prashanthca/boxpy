@@ -3,5 +3,5 @@
 Box.com python client
 
 ## Currently supported operations:
-	- Upload files
-	- List files
+- Upload files
+- List files
